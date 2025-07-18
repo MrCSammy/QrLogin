@@ -1,251 +1,157 @@
+<?php
+session_start();
+if (isset($_SESSION['user_id'])) {
+    header('Location: home.php');
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login System with QR Code Scanner</title>
-
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-
+    <title>QR Login & Registration</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500&display=swap');
-
-        * {
-            margin: 0;
-            padding: 0;
-            font-family: 'Poppins', sans-serif;
-        }
-
         body {
+            background: linear-gradient(135deg, #1f4037, #99f2c8);
+            min-height: 100vh;
             display: flex;
-            justify-content: center;
             align-items: center;
-            background-image: url("https://images.unsplash.com/photo-1507608158173-1dcec673a2e5?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D");
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-attachment: fixed;
-            height: 100vh;
+            justify-content: center;
         }
 
-        .login-container,
-        .registration-container {
-            backdrop-filter: blur(120px);
-            color: rgb(167, 9, 9);
-            padding: 25px 40px;
-            width: 500px;
-            border: 2px solid;
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .form-control, .btn {
+            border-radius: 8px;
+        }
+
+        #qr_image {
+            display: none;
+            width: 150px;
+            margin-top: 15px;
+        }
+
+        video {
+            width: 100%;
             border-radius: 10px;
-        }
-
-        .switch-form-link {
-            text-decoration: underline;
-            cursor: pointer;
-            color: rgb(100, 100, 250);
-        }
-
-        .drawingBuffer {
-            width: 0;
-            padding: 0;
+            margin-top: 10px;
         }
     </style>
 </head>
 
 <body>
-    <!-- Main Area -->
-    <div class="main">
 
-        <!-- Login Area -->
-        <div class="login-container">
-            <div class="login-form" id="loginForm">
-                <h2 class="text-center">Welcome Back!</h2>
-                <p class="text-center">Login with your QR code or manually input your code.</p>
+    <div class="container">
+        <div class="card p-4 text-dark" style="max-width: 500px; margin: auto; background: #fff;">
+            <h3 class="text-center mb-4">QR Code Login & Registration</h3>
 
-                <!-- QR Scanner Video -->
-                <video id="interactive" class="viewport" width="415" style="display: block;"></video>
+            <ul class="nav nav-tabs mb-3" id="myTab">
+                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#loginTab">Login</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#registerTab">Register</button></li>
+            </ul>
 
-                <!-- QR Detected Form -->
-                <div class="qr-detected-container" style="display: none;">
-                    <form id="qrLoginForm" action="./endpoint/login.php" method="POST">
-                        <h4 class="text-center">QR Code Detected!</h4>
-                        <input type="hidden" id="detected-qr-code" name="qr-code">
-                        <button type="button" class="btn btn-dark form-control" onclick="redirectToHome()">Login</button>
+            <div class="tab-content">
+                <!-- Login Tab -->
+                <div class="tab-pane fade show active" id="loginTab">
+                    <form action="./endpoint/login.php" method="POST">
+                        <div class="mb-3">
+                            <label>Enter Code Manually</label>
+                            <input type="text" name="qr-code" class="form-control" placeholder="Your QR Code" required>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100 mb-3">Login</button>
+                    </form>
+
+                    <h5 class="text-center mb-2">Or scan QR Code</h5>
+                    <video id="preview"></video>
+                </div>
+
+                <!-- Register Tab -->
+                <div class="tab-pane fade" id="registerTab">
+                    <form action="./endpoint/add-user.php" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <input type="text" name="name" class="form-control" placeholder="Full Name" required>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" name="contact_number" class="form-control" placeholder="Contact Number" required>
+                        </div>
+                        <div class="mb-3">
+                            <input type="email" name="email" class="form-control" placeholder="Email Address" required>
+                        </div>
+                        <div class="mb-3">
+                            <input type="file" name="image" class="form-control" accept="image/*" required>
+                        </div>
+                        <div class="mb-3">
+                            <input type="date" name="dob" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" name="level" class="form-control" placeholder="Level (e.g., 200)" required>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" name="session" class="form-control" placeholder="Session (e.g., 2024/2025)" required>
+                        </div>
+                        <div class="mb-3">
+                            <input type="text" name="department" class="form-control" placeholder="Department" required>
+                        </div>
+
+                        <input type="hidden" name="generated_code" id="generated_code">
+                        <div class="text-center">
+                            <img id="qr_image" src="">
+                        </div>
+
+                        <button type="button" onclick="generateQr()" class="btn btn-warning w-100 mb-2">Generate QR Code</button>
+                        <button type="submit" class="btn btn-primary w-100">Register</button>
                     </form>
                 </div>
 
-                <!-- Manual Login Form -->
-                <div class="manual-login-container mt-3">
-                    <form id="manualLoginForm" action="./endpoint/login.php" method="POST">
-                        <h5 class="text-center">Or enter your generated code</h5>
-                        <input type="text" name="qr-code" class="form-control mb-2" placeholder="Enter your QR code manually" required>
-                        <button type="button" class="btn btn-primary form-control" onclick="redirectToHome()">Login</button>
-                    </form>
-                </div>
-
-                <p class="mt-3">No Account? Register <span class="switch-form-link" onclick="showRegistrationForm()">Here.</span></p>
             </div>
         </div>
     </div>
 
-    <!-- Registration Area -->
-    <div class="registration-container">
-        <div class="registration-form" id="registrationForm">
-            <h2 class="text-center">Registration Form</h2>
-            <p class="text-center">Fill in your personal details.</p>
-            <form action="./endpoint/add-user.php" method="POST" enctype="multipart/form-data">
-                <div class="hide-registration-inputs">
-                    <div class="form-group registration">
-                        <label for="name">Full Name:</label>
-                        <input type="text" class="form-control" id="name" name="name" required>
-                    </div>
-                    <div class="form-group registration row">
-                        <div class="col-md-6">
-                            <label for="contactNumber">Contact Number:</label>
-                            <input type="text" class="form-control" id="contactNumber" name="contact_number" required maxlength="11">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="email">Email:</label>
-                            <input type="email" class="form-control" id="email" name="email" required>
-                        </div>
-                    </div>
-                    <div class="form-group registration row">
-                        <div class="col-md-12">
-                            <label for="image">Upload Profile Image(jpg):</label>
-                            <input type="file" class="form-control" id="image" name="image" accept="image/*" required>
-                        </div>
-                    </div>
-                    <div class="form-group registration row">
-                        <div class="col-md-6">
-                            <label for="dob">Date of Birth:</label>
-                            <input type="date" class="form-control" id="dob" name="dob" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="level">Level:</label>
-                            <input type="text" class="form-control" id="level" name="level" placeholder="e.g., 200" required>
-                        </div>
-                    </div>
-                    <div class="form-group registration row">
-                        <div class="col-md-6">
-                            <label for="session">Session:</label>
-                            <input type="text" class="form-control" id="session" name="session" placeholder="e.g., 2024/2025" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="department">Department:</label>
-                            <input type="text" class="form-control" id="department" name="department" required>
-                        </div>
-                    </div>
-                    <p>Already have a QR code account? Login <span class="switch-form-link" onclick="location.reload()">Here.</span></p>
-                    <button type="button" class="btn btn-dark login-register form-control" onclick="generateQrCode()">Register and Generate QR Code</button>
-                </div>
-                <div class="qr-code-container text-center" style="display: none;">
-                    <h3>Take a Picture of your QR Code and Login!</h3>
-                    <input type="hidden" id="generatedCode" name="generated_code">
-                    <div class="m-4" id="qrBox">
-                        <img src="" id="qrImg">
-                    </div>
-                    <button type="submit" class="btn btn-dark">Back to Login Form.</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Bootstrap Js -->
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.min.js"></script>
-    <!-- instascan Js -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://rawgit.com/schmich/instascan-builds/master/instascan.min.js"></script>
 
-    <!-- Script Area -->
     <script>
-        const loginCon = document.querySelector('.login-container');
-        const registrationCon = document.querySelector('.registration-container');
-        const registrationForm = document.querySelector('.registration-form');
-        const qrCodeContainer = document.querySelector('.qr-code-container');
-        let scanner;
+        // QR Scanner Setup
+        let scanner = new Instascan.Scanner({ video: document.getElementById('preview') });
+        scanner.addListener('scan', function(content) {
+            window.location.href = "./endpoint/login.php?qr-code=" + encodeURIComponent(content);
+        });
 
-        registrationCon.style.display = "none";
-        qrCodeContainer.style.display = "none";
-
-        function showRegistrationForm() {
-            registrationCon.style.display = "";
-            loginCon.style.display = "none";
-            if (scanner) {
-                scanner.stop();
-            }
-        }
-
-        function startScanner() {
-            scanner = new Instascan.Scanner({
-                video: document.getElementById('interactive')
-            });
-
-            scanner.addListener('scan', function(content) {
-                $("#detected-qr-code").val(content);
-                scanner.stop();
-                document.querySelector(".qr-detected-container").style.display = '';
-                document.querySelector(".viewport").style.display = 'none';
-            });
-
-            Instascan.Camera.getCameras()
-                .then(function(cameras) {
-                    if (cameras.length > 0) {
-                        scanner.start(cameras[0]);
-                    } else {
-                        alert('No cameras found. Please check your device.');
-                    }
-                })
-                .catch(function(err) {
-                    alert('Camera access error: ' + err);
-                });
-        }
-
-        function generateRandomCode(length) {
-            const characters = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()';
-            let randomString = '';
-
-            for (let i = 0; i < length; i++) {
-                const randomIndex = Math.floor(Math.random() * characters.length);
-                randomString += characters.charAt(randomIndex);
-            }
-
-            return randomString;
-        }
-
-        function generateQrCode() {
-            const registrationInputs = document.querySelector('.hide-registration-inputs');
-            const h2 = document.querySelector('.registration-form > h2');
-            const p = document.querySelector('.registration-form > p');
-            const qrImg = document.getElementById('qrImg');
-            const qrBox = document.getElementById('qrBox');
-
-            registrationInputs.style.display = 'none';
-
-            let text = generateRandomCode(10);
-            $("#generatedCode").val(text);
-
-            if (text === "") {
-                alert("Please enter text to generate a QR code.");
-                return;
+        Instascan.Camera.getCameras().then(function(cameras) {
+            if (cameras.length > 0) {
+                scanner.start(cameras[0]);
             } else {
-                const apiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(text)}`;
-
-                // Generating image
-                qrImg.src = apiUrl;
-                qrBox.setAttribute("id", "qrBoxGenerated");
-                qrCodeContainer.style.display = "";
-                registrationCon.style.display = "";
-                h2.style.display = "none";
-                p.style.display = "none";
+                alert('No camera found');
             }
-        }
-        
-        function redirectToHome() {
-            window.location.href = "../home.php";
+        });
+
+        // QR Code Generator + Alert
+        function generateRandomCode(length = 10) {
+            let chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+            let code = "";
+            for (let i = 0; i < length; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
         }
 
-        document.addEventListener('DOMContentLoaded', startScanner);
+        function generateQr() {
+            let code = generateRandomCode();
+            document.getElementById('generated_code').value = code;
+
+            // Display QR Image
+            let img = document.getElementById('qr_image');
+            img.src = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(code)}&size=150x150`;
+            img.style.display = "block";
+
+            // Show Alert with Code
+            alert("Your unique generated ID is: " + code + "\nPlease save it in case your device doesn't support QR login.");
+        }
     </script>
 
 </body>

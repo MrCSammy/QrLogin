@@ -1,8 +1,7 @@
 <?php
-session_start(); // Start the session
+session_start();
 include('../conn/conn.php');
 
-// Check if form data is received
 if (
     isset(
         $_POST['name'], $_POST['contact_number'], $_POST['email'],
@@ -10,20 +9,14 @@ if (
         $_POST['level'], $_POST['session'], $_POST['department']
     )
 ) {
-    $name = $_POST['name'];
-    $contact_number = $_POST['contact_number'];
-    $email = $_POST['email'];
-    $generatedCode = $_POST['generated_code'];
-    $dob = $_POST['dob'];
-    $level = $_POST['level'];
-    $sessionVal = $_POST['session'];
-    $department = $_POST['department'];
-
-    // Optional fallback values
-    $dob = !empty($dob) ? $dob : '2000-01-01';
-    $level = !empty($level) ? $level : 0;
-    $sessionVal = !empty($sessionVal) ? $sessionVal : 'Not Available';
-    $department = !empty($department) ? $department : 'Undecided';
+    $name = trim($_POST['name']);
+    $contact_number = trim($_POST['contact_number']);
+    $email = trim($_POST['email']);
+    $generatedCode = trim($_POST['generated_code']);
+    $dob = !empty($_POST['dob']) ? $_POST['dob'] : '2000-01-01';
+    $level = !empty($_POST['level']) ? $_POST['level'] : 'Not Specified';
+    $sessionVal = !empty($_POST['session']) ? $_POST['session'] : 'Not Available';
+    $department = !empty($_POST['department']) ? $_POST['department'] : 'Undecided';
 
     // Image upload handling
     $imageName = $_FILES['image']['name'];
@@ -31,7 +24,9 @@ if (
     $imageSize = $_FILES['image']['size'];
     $imageExtension = strtolower(pathinfo($imageName, PATHINFO_EXTENSION));
     $allowedExtensions = ['jpg', 'jpeg', 'png'];
-    $imagePath = '../uploads/' . uniqid('user_', true) . '.' . $imageExtension;
+    $uniqueImageName = uniqid('user_', true) . '.' . $imageExtension;
+    $uploadDir = '../uploads/';
+    $imagePath = $uploadDir . $uniqueImageName;
 
     // Validate required fields
     if (
@@ -58,52 +53,63 @@ if (
         // Validate image extension
         if (!in_array($imageExtension, $allowedExtensions)) {
             $conn->rollBack();
-            echo "<script>alert('Invalid image format. Please use jpg, jpeg or png'); window.location.href = 'http://localhost/QrLogin/';</script>";
+            echo "<script>alert('Invalid image format. Please use jpg, jpeg or png.'); window.location.href = 'http://localhost/QrLogin/';</script>";
             exit;
         }
 
-        // Validate image size
+        // Validate image size (max 5MB)
         if ($imageSize > 5 * 1024 * 1024) {
             $conn->rollBack();
             echo "<script>alert('Image size exceeds 5MB. Please upload a smaller image.'); window.location.href = 'http://localhost/QrLogin/';</script>";
             exit;
         }
 
-        // Upload image and insert into database
-        if (move_uploaded_file($imageTmp, $imagePath)) {
-            $insertStmt = $conn->prepare("
-                INSERT INTO `tbl_user` (`name`, `contact_number`, `email`, `generated_code`, `image`, `dob`, `level`, `session`, `department`)
-                VALUES (:name, :contact_number, :email, :generated_code, :image, :dob, :level, :session, :department)
-            ");
-
-            $insertStmt->execute([
-                'name' => $name,
-                'contact_number' => $contact_number,
-                'email' => $email,
-                'generated_code' => $generatedCode,
-                'image' => basename($imagePath),
-                'dob' => $dob,
-                'level' => $level,
-                'session' => $sessionVal,
-                'department' => $department
-            ]);
-
-            $conn->commit();
-
-            // Auto-login user after registration
-            $_SESSION['email'] = $email;
-            $_SESSION['name'] = $name;
-            $_SESSION['qr_code'] = $generatedCode;
-
-            echo "<script>alert('Registration successful! Redirecting to dashboard...'); window.location.href = 'http://localhost/QrLogin/home.php';</script>";
-        } else {
+        // Upload image
+        if (!move_uploaded_file($imageTmp, $imagePath)) {
             $conn->rollBack();
-            echo "<script>alert('Error uploading image.'); window.location.href = 'http://localhost/QrLogin/';</script>";
+            echo "<script>alert('Failed to upload image.'); window.location.href = 'http://localhost/QrLogin/';</script>";
+            exit;
         }
+
+        // Insert into database
+        $insertStmt = $conn->prepare("
+            INSERT INTO `tbl_user` (`name`, `contact_number`, `email`, `generated_code`, `image`, `dob`, `level`, `session`, `department`)
+            VALUES (:name, :contact_number, :email, :generated_code, :image, :dob, :level, :session, :department)
+        ");
+
+        $insertStmt->execute([
+            'name' => $name,
+            'contact_number' => $contact_number,
+            'email' => $email,
+            'generated_code' => $generatedCode,
+            'image' => $uniqueImageName,
+            'dob' => $dob,
+            'level' => $level,
+            'session' => $sessionVal,
+            'department' => $department
+        ]);
+
+        $userId = $conn->lastInsertId();
+        $conn->commit();
+
+        // Auto-login user after registration
+        $_SESSION['user_id'] = $userId;
+        $_SESSION['name'] = $name;
+        $_SESSION['email'] = $email;
+        $_SESSION['qr_code'] = $generatedCode;
+        $_SESSION['image'] = $uniqueImageName;
+        $_SESSION['dob'] = $dob;
+        $_SESSION['level'] = $level;
+        $_SESSION['session'] = $sessionVal;
+        $_SESSION['department'] = $department;
+
+        echo "<script>alert('Registration successful! Redirecting to dashboard...'); window.location.href = 'http://localhost/QrLogin/home.php';</script>";
+
     } catch (PDOException $e) {
         $conn->rollBack();
-        echo "Error: " . $e->getMessage();
+        echo "<script>alert('Database Error: " . addslashes($e->getMessage()) . "'); window.location.href = 'http://localhost/QrLogin/';</script>";
     }
+
 } else {
     echo "<script>alert('All fields are required.'); window.location.href = 'http://localhost/QrLogin/';</script>";
 }
